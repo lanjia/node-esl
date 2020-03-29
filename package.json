@@ -1,5 +1,5 @@
 {
-  "name": "async-modesl",
+  "name": "modesl-async",
   "version": "1.0.0",
   "description": "esl",
   "main": "./lib/index.js",
@@ -16,6 +16,10 @@
   "keywords": [
     "esl"
   ],
+  "repository": {
+    "type":"git",
+    "url":"git+https://github.com/lanjia/node-esl.git"
+  },
   "author": "wwd",
   "license": "ISC",
   "standard": {
