@@ -3,23 +3,9 @@ import { once, EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
 import Parser from './parser'
 
-function toCommandString (command, args) {
-  const commands = []
-  commands.push(command + '\n')
-  if (args) {
-    for (const [key, value] of Object.entries(args)) {
-      commands.push(key + ': ' + value + '\n')
-    }
-  }
-  commands.push('\n')
-  return commands.join('')
-}
-
 export default class Connection extends EventEmitter {
   #socket
   #connecting = true
-  #apiCallbackQueue = []
-  #cmdCallbackQueue = []
   #host
   #port
   #password
@@ -56,20 +42,20 @@ export default class Connection extends EventEmitter {
       (async () => {
         let res
         res = await this.sendRecv('connect')
-        if (res.err || !res.data.getHeader('success')) {
+        if (!!res.err || !res.data.getHeader('success')) {
           this.emit('error', new Error('connect fails'), 'Connection constructor')
           return false
         }
         // res = await this.subscribe(['CHANNEL_EXECUTE_COMPLETE','CHANNEL_ANSWER'])
-        // if (res.err || !res.data.getHeader('success')) {
+        // if (!!res.err || !res.data.getHeader('success')) {
         //   this.emit('error', new Error('subscribe fails'), 'Connection constructor')
         // }
         res = await this.sendRecv('myevents')
-        if (res.err || !res.data.getHeader('success')) {
+        if (!!res.err || !res.data.getHeader('success')) {
           this.emit('error', new Error('myevents fails'), 'Connection constructor')
         }
         res = await this.sendRecv('linger 1')
-        if (res.err || !res.data.getHeader('success')) {
+        if (!!res.err || !res.data.getHeader('success')) {
           this.emit('error', new Error('linger fails'), 'Connection constructor')
         }
         this.emit('esl::ready')
@@ -111,7 +97,9 @@ export default class Connection extends EventEmitter {
   // =======================
   socketDescriptor () { }
 
-  connected () { }
+  connected () {
+    return !this.#connecting && !!this.#socket
+  }
 
   getInfo () {
     return this.#channelData
@@ -120,7 +108,7 @@ export default class Connection extends EventEmitter {
   send (command, args) {
     // console.log('send:', command, args)
 
-    this.#socket.write(toCommandString(command, args))
+    this.#socket.write(this._toCommandString(command, args))
     // try {
     //   this.#socket.write(toCommandString(command, args))
     // } catch (err) {
@@ -130,8 +118,8 @@ export default class Connection extends EventEmitter {
 
   async sendRecv (command, args, timeout = 3000) {
     const fun = () => this.send(command, args)
-    // return await this.recvEventTimed(fun, command, 'esl::event::command::reply')
-    return await this.onceAsync(fun, command, 'esl::event::command::reply', timeout)
+    const res = await this.onceAsync(fun, command, 'esl::event::command::reply', timeout)
+    return res
   }
 
   async api (command, timeout = 3000) {
@@ -141,16 +129,18 @@ export default class Connection extends EventEmitter {
     const res = await this.onceAsync(fun, command, eventName, timeout)
     if (!res.err) {
       res.data = res.data.getBody()
-    } 
+    }
     return res
   }
 
   async bgapi (command, timeout = 3000) {
-    return await this.api(command, timeout)
+    const res = await this.api(command, timeout)
+    return res
   }
 
   async sendEvent (event, timeout = 3000) {
-    return await this.sendRecv(`sendevent ${event.getHeader('Event-Name')}'\n'${event.serialize()}`, null, timeout)
+    const res = await this.sendRecv(`sendevent ${event.getHeader('Event-Name')}'\n'${event.serialize()}`, null, timeout)
+    return res
   }
 
   async recvEvent (eventName) {
@@ -159,22 +149,26 @@ export default class Connection extends EventEmitter {
   }
 
   async recvEventTimed (fun, command, eventName, timeout = 3000) {
-    return await this.onceAsync(fun, command, eventName, timeout)
+    const res = await this.onceAsync(fun, command, eventName, timeout)
+    return res
   }
 
   async filter (header, value, timeout = 3000) {
-    return await this.sendRecv(`filter ${header} ${value}`, null, timeout)
+    const res = await this.sendRecv(`filter ${header} ${value}`, null, timeout)
+    return res
   }
 
   async filterDelete (header, value, timeout = 3000) {
-    return await this.sendRecv(`filter delete ${header}${value ? ' ' + value : ''}`, null, timeout)
+    const res = await this.sendRecv(`filter delete ${header}${value ? ' ' + value : ''}`, null, timeout)
+    return res
   }
 
   async events (eventType, value, timeout = 3000) {
     if (!['plain', 'xml', 'json'].includes(eventType)) {
       return false
     }
-    return await this.sendRecv(`event ${eventType} ${value.join(' ')}`, '', timeout)
+    const res = await this.sendRecv(`event ${eventType} ${value.join(' ')}`, '', timeout)
+    return res
   }
 
   async execute (app, arg, timeout = 3000) {
@@ -192,11 +186,13 @@ export default class Connection extends EventEmitter {
     const eventName = `esl::event::CHANNEL_EXECUTE_COMPLETE::${eventUuid}`
     const fun = () => this.send(`sendmsg ${this.#UniqueID}`, options)
 
-    return await this.onceAsync(fun, app, eventName, timeout)
+    const res = await this.onceAsync(fun, app, eventName, timeout)
+    return res
   }
 
   async executeAsync (app, arg, timeout = 3000) {
-    return await this.execute(app, arg, timeout)
+    const res = await this.execute(app, arg, timeout)
+    return res
   }
 
   setAsyncExecute (value) {
@@ -228,7 +224,8 @@ export default class Connection extends EventEmitter {
   }
 
   async subscribe (events, type = 'json') {
-    return await this.events(type, events ?? ['all'])
+    const res = await this.events(type, events ?? ['all'])
+    return res
   }
 
   /**
@@ -330,24 +327,15 @@ export default class Connection extends EventEmitter {
     return Promise.race([fn, timeoutAsync]).then(data => { return { data: data } }).catch(err => { return { err: err } })
   }
 
-  // async onAsync (fun, command, eventName, timeout = 3000) {
-  //   let timeId = 0
-  //   const fn = new Promise(resolve => {
-  //     this.on(eventName, (...args) => {
-  //       if (timeId > 0) {
-  //         clearTimeout(timeId)
-  //       }
-  //       this.removeAllListeners(eventName)
-  //       resolve(args[0])
-  //     })
-  //     fun()
-  //   })
-  //   const timeout = new Promise((resolve, reject) => {
-  //     timeId = setTimeout(() => {
-  //       this.removeAllListeners(eventName)
-  //       reject(new Error(`${command} TimeOut`))
-  //     }, timeout)
-  //   })
-  //   return Promise.race([fn, timeout])
-  // }
+  _toCommandString (command, args) {
+    const commands = []
+    commands.push(command + '\n')
+    if (args) {
+      for (const [key, value] of Object.entries(args)) {
+        commands.push(key + ': ' + value + '\n')
+      }
+    }
+    commands.push('\n')
+    return commands.join('')
+  }
 }
