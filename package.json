@@ -17,8 +17,8 @@
     "esl"
   ],
   "repository": {
-    "type":"git",
-    "url":"git+https://github.com/lanjia/node-esl.git"
+    "type": "git",
+    "url": "git+https://github.com/lanjia/node-esl.git"
   },
   "author": "wwd",
   "license": "ISC",
@@ -45,6 +45,6 @@
   },
   "dependencies": {
     "fast-xml-parser": "^3.16.0",
-    "uuid": "^7.0.2"
+    "uuid": "^7.0.3"
   }
 }
