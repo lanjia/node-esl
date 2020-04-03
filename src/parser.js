@@ -33,7 +33,7 @@ export default class Parser extends EventEmitter {
     super({ captureRejections: true })
 
     this.#encoding = encoding
-    socket.on('data', (data) => {
+    socket.on('data', data => {
       this._onData(data)
     })
     socket.on('end', () => {
@@ -42,8 +42,21 @@ export default class Parser extends EventEmitter {
   }
 
   static parseHeaderText (text) {
-    // console.log('parseHeaderText:', text)
-    // console.log('--------------')
+    // return text.split('\n').reduce(function (headers, line) {
+    //   const data = line.split(': ')
+    //   const key = data.shift()
+    //   const value = decodeURIComponent(data.join(': '))
+
+    //   if (key === 'Content-Length') {
+    //     headers[key] = parseInt(value, 10)
+    //   } else {
+    //     headers[key] = value
+    //   }
+    //   return headers
+    // }, {})
+
+    // console.log('----------parseHeaderText:', text)
+    // console.log('--------------------------------')
     const lines = text.split('\n')
     const headers = {}
 
@@ -57,6 +70,9 @@ export default class Parser extends EventEmitter {
       const data = lines[i].split(': ')
       const key = data.shift()
       const value = decodeURIComponent(data.join(': '))
+      // console.log('key:[', key, ']')
+      // console.log('decodeURIComponent:[', data.join(': '), ']')
+      // console.log('value:[', value, ']')
 
       if (!key) {
         continue
@@ -73,8 +89,13 @@ export default class Parser extends EventEmitter {
 
   static parsePlainBody (text) {
     // if the body is event-plain then it is just a bunch of key/value pairs
+    // console.log('----------------------------parsePlainBody:text:', text)
+    // console.log('----------------------------')
     const headerEnd = text.indexOf('\n\n')
-    const headers = Parser.parseHeaderText(text.substring(0, headerEnd))
+    const headerText = text.substring(0, headerEnd)
+    // console.log('============================parsePlainBody:headerText', headerText)
+    // console.log('============================')
+    const headers = Parser.parseHeaderText(headerText)
     const contentLengthHeader = headers['Content-Length']
 
     let error
@@ -120,7 +141,10 @@ export default class Parser extends EventEmitter {
   }
 
   _onData (data) {
-    this.#buffer = Buffer.concat([this.#buffer, data], this.#buffer.length + data.length)
+    this.#buffer = Buffer.concat(
+      [this.#buffer, data],
+      this.#buffer.length + data.length
+    )
 
     if (this.#bodyLen > 0) {
       this._parseBody()
@@ -151,6 +175,9 @@ export default class Parser extends EventEmitter {
     // if the headers have ended pull out the header text
     const headText = this.#buffer.toString(this.#encoding, 0, headEnd)
 
+    // console.log('headText:', headText)
+    // console.log('---------------------')
+
     // remove header text from buffer
     this.#buffer = this.#buffer.slice(headEnd + 2)
 
@@ -162,7 +189,9 @@ export default class Parser extends EventEmitter {
     if (contentLengthHeader) {
       this.#bodyLen = parseInt(contentLengthHeader, 10)
 
-      if (this.#buffer.length) this._parseBody()
+      if (this.#buffer.length) {
+        this._parseBody()
+      }
     } else {
       this._parseEvent('')
 
@@ -198,8 +227,8 @@ export default class Parser extends EventEmitter {
       }
       // parse body as PLAIN event data
       case 'text/event-plain': {
+        // console.log('_parseEvent event-plain:', body)
         const { error, headers } = Parser.parsePlainBody(body)
-
         if (error) {
           this.emit('error', error, 'Parser parseEvent text/event-plain')
         }

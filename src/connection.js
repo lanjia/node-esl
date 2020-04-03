@@ -46,11 +46,11 @@ export default class Connection extends EventEmitter {
           this.emit('error', new Error('connect fails'), 'Connection constructor')
           return false
         }
-        // res = await this.subscribe(['CHANNEL_EXECUTE_COMPLETE','CHANNEL_ANSWER'])
+        // res = await this.subscribe(['CHANNEL_EXECUTE_COMPLETE', 'CHANNEL_ANSWER'])
         // if (!!res.err || !res.data.getHeader('success')) {
         //   this.emit('error', new Error('subscribe fails'), 'Connection constructor')
         // }
-        res = await this.sendRecv('myevents')
+        res = await this.sendRecv(`myevents json ${this.#UniqueID}`)
         if (!!res.err || !res.data.getHeader('success')) {
           this.emit('error', new Error('myevents fails'), 'Connection constructor')
         }
@@ -102,6 +102,10 @@ export default class Connection extends EventEmitter {
   }
 
   getInfo () {
+    return this.#channelData
+  }
+
+  get channelData () {
     return this.#channelData
   }
 
